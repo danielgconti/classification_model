@@ -18,3 +18,18 @@ print("Ran the import statements.")
 
 # @title Load the dataset
 rice_dataset_raw = pd.read_csv("https://download.mlcc.google.com/mledu-datasets/Rice_Cammeo_Osmancik.csv")
+
+# @title
+# Read and provide statistics on the dataset.
+rice_dataset = rice_dataset_raw[[
+    'Area',
+    'Perimeter',
+    'Major_Axis_Length',
+    'Minor_Axis_Length',
+    'Eccentricity',
+    'Convex_Area',
+    'Extent',
+    'Class',
+]]
+
+rice_dataset.describe()
