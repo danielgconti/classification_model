@@ -136,36 +136,39 @@ input_features = [
     'Major_Axis_Length',
     'Area',
 ]
+# @title Define the functions that create and train a model.
+
 
 def create_model(
     settings: ml_edu.experiment.ExperimentSettings,
     metrics: list[keras.metrics.Metric],
 ) -> keras.Model:
-    """Create and compile a simple classification model"""
-    model_inputs = [
-        keras.Input(name=feature, shape=(1,))
-        for feature in settings.input_features
-    ]
-    # Use a Concatenate layer to assemble the different inputs into a single
-    # tensor which will be given as input to the Dense layer.
-    # For example: [input_1[0][0], input_2[0][0]]
+  """Create and compile a simple classification model."""
+  model_inputs = [
+      keras.Input(name=feature, shape=(1,))
+      for feature in settings.input_features
+  ]
+  # Use a Concatenate layer to assemble the different inputs into a single
+  # tensor which will be given as input to the Dense layer.
+  # For example: [input_1[0][0], input_2[0][0]]
 
-    concatenated_inputs = keras.layers.Concatenate()(model_inputs)
-    model_output = keras.layers.Dense(
-        units=1, name='dense_layer', activation=keras.activations.signmoid
-    )(concatenated_inputs)
-    mode = keras.Model(inputs=modek_inputs, output=model_output)
-    # Call the compile method to transform the layers into a model that
-    # Keras can execute. Notive that we're using a different loss
-    # function for classification than for regression.
-    model.compile(
-        optimizer=keras.optimizers.RMSprop(
-            settings.learning_rate
-        ),
-        loss=keras.losses.BinaryCrossentropy(),
-        metrics=metrics,
-    )
-    return model
+  concatenated_inputs = keras.layers.Concatenate()(model_inputs)
+  model_output = keras.layers.Dense(
+      units=1, name='dense_layer', activation=keras.activations.sigmoid
+  )(concatenated_inputs)
+  model = keras.Model(inputs=model_inputs, outputs=model_output)
+  # Call the compile method to transform the layers into a model that
+  # Keras can execute.  Notice that we're using a different loss
+  # function for classification than for regression.
+  model.compile(
+      optimizer=keras.optimizers.RMSprop(
+          settings.learning_rate
+      ),
+      loss=keras.losses.BinaryCrossentropy(),
+      metrics=metrics,
+  )
+  return model
+
 
 def train_model(
     experiment_name: str,
@@ -174,28 +177,143 @@ def train_model(
     labels: np.ndarray,
     settings: ml_edu.experiment.ExperimentSettings,
 ) -> ml_edu.experiment.Experiment:
-    """Feed a dataset into the model in order to train it"""
+  """Feed a dataset into the model in order to train it."""
 
-    # The x parameter of keras.Model.fit can be a list of arrays, where
-    # each array contains the data for one feature
-    features = {
-        feature_name: np.array(dataset[feature_name])
-        for feature_name in settings.input_features
-    }
+  # The x parameter of keras.Model.fit can be a list of arrays, where
+  # each array contains the data for one feature.
+  features = {
+      feature_name: np.array(dataset[feature_name])
+      for feature_name in settings.input_features
+  }
 
-    history = model.fit(
-        x=features,
-        y=labels,
-        batch_size=settings.batch_size,
-        epochs=settings.number_epochs,
-    )
+  history = model.fit(
+      x=features,
+      y=labels,
+      batch_size=settings.batch_size,
+      epochs=settings.number_epochs,
+  )
 
-    return ml_edu.experiment.Experiment(
-        name=experiment_name,
-        settings=settings,
-        model=model,
-        epochs=history.epoch,
-        metrics_history=pd.DataFrame(history.history),
-    )
+  return ml_edu.experiment.Experiment(
+      name=experiment_name,
+      settings=settings,
+      model=model,
+      epochs=history.epoch,
+      metrics_history=pd.DataFrame(history.history),
+  )
 
-    print('Defined the create_model and train_model functions.')
+
+print('Defined the create_model and train_model functions.')
+
+# Let's define our first experiment settings.
+settings = ml_edu.experiment.ExperimentSettings(
+    learning_rate=0.001,
+    number_epochs=60,
+    batch_size=100,
+    classification_threshold=0.35,
+    input_features=input_features,
+)
+
+metrics = [
+    keras.metrics.BinaryAccuracy(
+        name='accuracy', threshold=settings.classification_threshold
+    ),
+    keras.metrics.Precision(
+        name='precision', thresholds=settings.classification_threshold
+    ),
+    keras.metrics.Recall(
+        name='recall', thresholds=settings.classification_threshold
+    ),
+    keras.metrics.AUC(num_thresholds=100, name='auc'),
+]
+
+# Establish the model's topography.
+model = create_model(settings, metrics)
+
+# Train the model on the training set.
+experiment = train_model(
+    'baseline', model, train_features, train_labels, settings
+)
+
+ml_edu.results.plot_experiment_metrics(experiment, ['accuracy', 'precision', 'recall'])
+ml_edu.results.plot_experiment_metrics(experiment, ['auc'])
+
+# plt.show()
+
+def compare_train_test(experiment: ml_edu.experiment.Experiment, test_metrics: dict[str, float]):
+  print('Comparing metrics between train and test:')
+  for metric, test_value in test_metrics.items():
+    print('------')
+    print(f'Train {metric}: {experiment.get_final_metric_value(metric):.4f}')
+    print(f'Test {metric}:  {test_value:.4f}')
+
+
+# Evaluate test metrics
+test_metrics = experiment.evaluate(test_features, test_labels)
+compare_train_test(experiment, test_metrics)
+
+# Features used to train the model on.
+# Specify all features.
+all_input_features = [
+  'Eccentricity',
+  'Major_Axis_Length',
+  'Minor_Axis_Length',
+  "Area",
+  "Perimeter",
+  "Extent",
+  "Convex_Area"
+]
+
+settings_all_features = ml_edu.experiment.ExperimentSettings(
+    learning_rate=0.001,
+    number_epochs=60,
+    batch_size=100,
+    classification_threshold=0.5,
+    input_features=all_input_features,
+)
+
+# Modify the following definition of METRICS to generate
+# not only accuracy and precision, but also recall:
+metrics = [
+    keras.metrics.BinaryAccuracy(
+        name='accuracy',
+        threshold=settings_all_features.classification_threshold,
+    ),
+    keras.metrics.Precision(
+        name='precision',
+        thresholds=settings_all_features.classification_threshold,
+    ),
+    keras.metrics.Recall(
+        name='recall', thresholds=settings_all_features.classification_threshold
+    ),
+    keras.metrics.AUC(num_thresholds=100, name='auc'),
+]
+
+# Establish the model's topography.
+model_all_features = create_model(settings_all_features, metrics)
+
+# Train the model on the training set.
+experiment_all_features = train_model(
+    'all features',
+    model_all_features,
+    train_features,
+    train_labels,
+    settings_all_features,
+)
+
+# Plot metrics vs. epochs
+ml_edu.results.plot_experiment_metrics(
+    experiment_all_features, ['accuracy', 'precision', 'recall']
+)
+ml_edu.results.plot_experiment_metrics(experiment_all_features, ['auc'])
+
+test_metrics_all_features = experiment_all_features.evaluate(
+    test_features,
+    test_labels,
+)
+compare_train_test(experiment_all_features, test_metrics_all_features)
+
+ml_edu.results.compare_experiment([experiment, experiment_all_features],
+['accuracy', 'auc'],
+test_features, test_labels)
+
+plt.show()
